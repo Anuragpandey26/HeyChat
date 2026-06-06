@@ -18,6 +18,7 @@ const envSchema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),
+  FRONTEND_URL: z.string().url().optional(),
 });
 
 // For testing purposes, we allow Cloudinary keys to be optional

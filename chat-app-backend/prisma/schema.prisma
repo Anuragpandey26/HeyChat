@@ -1,0 +1,239 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum ChatType {
+  PRIVATE
+  GROUP
+}
+
+enum ParticipantRole {
+  MEMBER
+  ADMIN
+  LEFT
+  REMOVED
+}
+
+enum MediaType {
+  TEXT
+  IMAGE
+  VIDEO
+  PDF
+  LINK
+  POLL
+}
+
+enum ReceiptStatus {
+  SENT
+  DELIVERED
+  SEEN
+}
+
+enum StatusType {
+  TEXT
+  IMAGE
+  VIDEO
+}
+
+model User {
+  id                   String            @id @default(uuid()) @db.Uuid
+  username             String            @unique @db.VarChar(50)
+  email                String            @unique @db.VarChar(255)
+  phoneNumber          String?           @db.VarChar(20)
+  fullName             String            @db.VarChar(100)
+  bio                  String?           @db.VarChar(139)
+  profilePictureUrl    String?           @db.VarChar(500)
+  passwordHash         String            @db.VarChar(255)
+  securityQuestionHash String            @db.VarChar(255)
+  publicKey            String            @db.Text
+  isOnline             Boolean           @default(false)
+  lastSeen             DateTime          @default(now())
+  createdAt            DateTime          @default(now())
+  
+  participants         Participant[]
+  messages             Message[]
+  receipts             Receipt[]
+  reactions            MessageReaction[]
+  statuses             Status[]
+  statusViews          StatusView[]
+  blockedUsers         BlockList[]       @relation("Blocker")
+  blockedBy            BlockList[]       @relation("Blocked")
+  pollVotes            PollVote[]
+  refreshTokens        RefreshToken[]
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  tokenHash String   @db.VarChar(255)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Conversation {
+  id          String        @id @default(uuid()) @db.Uuid
+  chatType    ChatType
+  createdAt   DateTime      @default(now())
+  
+  groupDetails GroupDetails?
+  participants Participant[]
+  messages     Message[]
+}
+
+model GroupDetails {
+  chatId             String       @id @db.Uuid
+  groupName          String       @db.VarChar(100)
+  description        String?      @db.Text
+  groupPhotoUrl      String?      @db.VarChar(500)
+  onlyAdminsCanSend  Boolean      @default(false)
+  
+  conversation       Conversation @relation(fields: [chatId], references: [id], onDelete: Cascade)
+}
+
+model Participant {
+  chatId    String          @db.Uuid
+  userId    String          @db.Uuid
+  role      ParticipantRole @default(MEMBER)
+  isPinned  Boolean         @default(false)
+  joinedAt  DateTime        @default(now())
+  leftAt    DateTime?
+  clearedAt DateTime?
+  
+  conversation Conversation @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([chatId, userId])
+}
+
+model Message {
+  id                 String            @id @default(uuid()) @db.Uuid
+  chatId             String            @db.Uuid
+  senderId           String            @db.Uuid
+  encryptedContent   String            @db.Text
+  mediaUrl           String?           @db.VarChar(500)
+  mediaType          MediaType         @default(TEXT)
+  sentAt             DateTime          @default(now())
+  editedAt           DateTime?
+  isDeletedEveryone  Boolean           @default(false)
+  
+  conversation       Conversation      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender             User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  receipts           Receipt[]
+  reactions          MessageReaction[]
+  polls              Poll[]
+}
+
+model Receipt {
+  messageId   String        @db.Uuid
+  recipientId String        @db.Uuid
+  status      ReceiptStatus @default(SENT)
+  updatedAt   DateTime      @updatedAt
+  
+  message     Message       @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  recipient   User          @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, recipientId])
+}
+
+model MessageReaction {
+  id        String   @id @default(uuid()) @db.Uuid
+  messageId String   @db.Uuid
+  userId    String   @db.Uuid
+  emoji     String   @db.VarChar(10)
+  
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Status {
+  id               String       @id @default(uuid()) @db.Uuid
+  userId           String       @db.Uuid
+  statusType       StatusType
+  encryptedContent String       @db.Text
+  mediaUrl         String?      @db.VarChar(500)
+  backgroundColor  String?      @db.VarChar(7)
+  createdAt        DateTime     @default(now())
+  expiresAt        DateTime
+  
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  views            StatusView[]
+}
+
+model StatusView {
+  statusId  String   @db.Uuid
+  viewerId  String   @db.Uuid
+  isLiked   Boolean  @default(false)
+  emoji     String?  @db.VarChar(10)
+  viewedAt  DateTime @default(now())
+  
+  status    Status   @relation(fields: [statusId], references: [id], onDelete: Cascade)
+  viewer    User     @relation(fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@id([statusId, viewerId])
+}
+
+model BlockList {
+  blockerId String   @db.Uuid
+  blockedId String   @db.Uuid
+  createdAt DateTime @default(now())
+  
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@id([blockerId, blockedId])
+}
+
+model Poll {
+  id                String       @id @default(uuid()) @db.Uuid
+  messageId         String       @db.Uuid
+  encryptedQuestion String       @db.Text
+  
+  message           Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  options           PollOption[]
+}
+
+model PollOption {
+  id            String   @id @default(uuid()) @db.Uuid
+  pollId        String   @db.Uuid
+  encryptedText String   @db.Text
+  
+  poll          Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes         PollVote[]
+}
+
+model PollVote {
+  optionId String   @db.Uuid
+  userId   String   @db.Uuid
+  
+  option   PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([optionId, userId])
+}
+
+// PostgreSQL-Backed Cache System
+model Cache {
+  key       String   @id @db.VarChar(255)
+  value     String   @db.Text
+  expiresAt DateTime?
+}
+
+// PostgreSQL-Backed Queue Table
+model JobQueue {
+  id          String    @id @default(uuid()) @db.Uuid
+  queueName   String    @db.VarChar(100)
+  payload     String    @db.Text
+  status      String    @default("PENDING") @db.VarChar(20) // PENDING, PROCESSING, COMPLETED, FAILED
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  runAt       DateTime  @default(now())
+  lockedAt    DateTime?
+  error       String?   @db.Text
+  createdAt   DateTime  @default(now())
+}

@@ -4,21 +4,22 @@ const authService = new AuthService();
 
 const setTokenCookies = (res, accessToken, refreshToken) => {
   const isProd = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? 'none' : 'lax',
+  };
   
   if (accessToken) {
     res.cookie('accessToken', accessToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'strict',
+      ...cookieOptions,
       maxAge: 15 * 60 * 1000, // 15 mins
     });
   }
 
   if (refreshToken) {
     res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'strict',
+      ...cookieOptions,
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
     });
   }
@@ -26,8 +27,9 @@ const setTokenCookies = (res, accessToken, refreshToken) => {
 
 const clearTokenCookies = (res) => {
   const isProd = process.env.NODE_ENV === 'production';
-  res.clearCookie('accessToken', { httpOnly: true, secure: isProd, sameSite: 'strict' });
-  res.clearCookie('refreshToken', { httpOnly: true, secure: isProd, sameSite: 'strict' });
+  const sameSite = isProd ? 'none' : 'lax';
+  res.clearCookie('accessToken', { httpOnly: true, secure: isProd, sameSite });
+  res.clearCookie('refreshToken', { httpOnly: true, secure: isProd, sameSite });
 };
 
 export class AuthController {
@@ -72,7 +74,7 @@ export class AuthController {
 
   async refresh(req, res, next) {
     try {
-      const token = req.cookies.refreshToken || req.body.refreshToken;
+      const token = req.cookies?.refreshToken || req.body?.refreshToken;
 
       if (!token) {
         return res.status(401).json({

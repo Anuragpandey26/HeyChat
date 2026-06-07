@@ -560,7 +560,7 @@ export const ChatInput = ({ chatId, chatType, recipientPublicKey }) => {
           disabled={!text.trim() || isUploading || isRestricted}
           className="p-3 bg-gradient-to-tr from-brand-600 to-blue-500 hover:from-brand-500 hover:to-blue-400 active:scale-95 text-white rounded-xl shadow-[0_4px_16px_rgba(37,99,235,0.25)] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
         >
-          <Send className="h-4.5 w-4.5" />
+          <Send className="h-4 w-4" />
         </button>
       </form>
 

@@ -96,7 +96,7 @@ export const CreateChatModal = ({ isOpen, onClose }) => {
         <div className="flex flex-col gap-4">
           {/* Search bar */}
           <div className="relative">
-            <Search className="absolute left-3.5 top-3 h-4.5 w-4.5 text-slate-500" />
+            <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
             <input
               placeholder="Search users by name or username..."
               value={searchQuery}
@@ -190,7 +190,7 @@ export const CreateChatModal = ({ isOpen, onClose }) => {
               Add Participants
             </label>
             <div className="relative">
-              <Search className="absolute left-3.5 top-3 h-4.5 w-4.5 text-slate-500" />
+              <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
               <input
                 placeholder="Search by name or username..."
                 value={searchQuery}

@@ -275,7 +275,7 @@ export const ChatWindow = () => {
               }}
               className="md:hidden p-2 bg-slate-950/40 border border-slate-850 hover:bg-slate-800 hover:text-white rounded-xl transition-all"
             >
-              <ArrowLeft className="h-4.5 w-4.5" />
+              <ArrowLeft className="h-4 w-4" />
             </button>
             <div className="flex flex-col">
               <h4 className="text-sm font-bold text-slate-100 flex items-center gap-2">
@@ -305,7 +305,7 @@ export const ChatWindow = () => {
             )}
             title="Chat Info"
           >
-            <Users className="h-4.5 w-4.5 text-slate-450" />
+            <Users className="h-4 w-4 text-slate-450" />
           </button>
         </div>
 
@@ -508,7 +508,7 @@ export const ChatWindow = () => {
                             rel="noopener noreferrer"
                             className="flex items-center gap-2.5 p-2 bg-slate-955/40 hover:bg-slate-900 border border-slate-800 rounded-xl transition-colors min-w-0"
                           >
-                            <FileText className="h-4.5 w-4.5 text-red-500 flex-shrink-0" />
+                            <FileText className="h-4 w-4 text-red-500 flex-shrink-0" />
                             <span className="text-[10px] text-slate-300 font-semibold truncate flex-1 leading-tight">
                               {item.url?.split('/').pop() || 'document.pdf'}
                             </span>

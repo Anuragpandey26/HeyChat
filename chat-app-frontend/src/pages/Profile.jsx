@@ -156,7 +156,7 @@ export default function Profile() {
             onClick={() => navigate('/')}
             className="p-2 bg-slate-950/40 border border-slate-850 hover:bg-slate-800 hover:text-white rounded-xl transition-all"
           >
-            <ArrowLeft className="h-4.5 w-4.5" />
+            <ArrowLeft className="h-4 w-4" />
           </button>
           <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider">
             {isSelf ? 'Profile Settings' : 'User Profile'}
@@ -171,7 +171,7 @@ export default function Profile() {
         )}
         {success && (
           <div className="mb-5 p-3.5 bg-emerald-950/25 border border-emerald-900/40 rounded-xl text-xs font-bold text-emerald-400 flex items-center gap-1.5 animate-fade-in shadow-sm">
-            <Check className="h-4.5 w-4.5 text-emerald-500 filter drop-shadow-[0_0_4px_rgba(16,185,129,0.5)]" /> {success}
+            <Check className="h-4 w-4 text-emerald-500 filter drop-shadow-[0_0_4px_rgba(16,185,129,0.5)]" /> {success}
           </div>
         )} 
 

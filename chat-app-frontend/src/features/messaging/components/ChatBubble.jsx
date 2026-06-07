@@ -344,7 +344,7 @@ export const ChatBubble = ({ message, chatType, isGroupAdmin = false }) => {
                                   key={v.userId}
                                   src={user.profilePictureUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${user.fullName}`}
                                   alt={user.fullName}
-                                  className="w-4.5 h-4.5 rounded-full border border-slate-900 object-cover"
+                                  className="w-4 h-4 rounded-full border border-slate-900 object-cover"
                                   title={user.fullName}
                                 />
                               );

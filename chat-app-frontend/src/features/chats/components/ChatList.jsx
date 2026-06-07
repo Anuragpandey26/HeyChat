@@ -133,7 +133,7 @@ export const ChatList = () => {
               className="p-1.5 hover:bg-red-950/20 rounded-lg text-red-400 hover:text-red-350 transition-colors flex items-center justify-center animate-fade-in"
               title="Clear All Notifications"
             >
-              <Trash2 className="h-4.5 w-4.5" />
+              <Trash2 className="h-4 w-4" />
             </button>
           ) : (
             <div className="w-8 h-8" />
@@ -142,7 +142,7 @@ export const ChatList = () => {
       ) : (
         <div className="p-4 flex items-center justify-between border-b border-slate-800">
           <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="logo" className="h-5.5 w-5.5 object-contain rounded-md" />
+            <img src="/logo.png" alt="logo" className="h-5 w-5 object-contain rounded-md" />
             <span className="font-bold text-sm text-slate-100 tracking-tight">heyChat</span>
           </div>
           <div className="flex items-center gap-1">
@@ -214,7 +214,7 @@ export const ChatList = () => {
                   }}
                   className="p-3.5 border-b border-slate-800/40 hover:bg-slate-800/40 cursor-pointer transition-colors flex items-start gap-3.5 text-left"
                 >
-                  <div className="w-8.5 h-8.5 rounded-full bg-slate-800 border border-slate-700/60 flex items-center justify-center text-xs font-bold text-slate-300 flex-shrink-0 relative overflow-hidden">
+                  <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700/60 flex items-center justify-center text-xs font-bold text-slate-300 flex-shrink-0 relative overflow-hidden">
                     {item.sender?.profilePictureUrl ? (
                       <img src={item.sender.profilePictureUrl} alt="" className="w-full h-full object-cover" />
                     ) : (
@@ -339,14 +339,14 @@ export const ChatList = () => {
             className="p-1.5 hover:bg-slate-850 rounded-lg text-slate-400 hover:text-slate-200 transition-colors"
             title="Settings"
           >
-            <Settings className="h-4.5 w-4.5" />
+            <Settings className="h-4 w-4" />
           </button>
           <button
             onClick={handleLogout}
             className="p-1.5 hover:bg-red-950/20 rounded-lg text-slate-400 hover:text-red-400 transition-colors"
             title="Logout"
           >
-            <LogOut className="h-4.5 w-4.5" />
+            <LogOut className="h-4 w-4" />
           </button>
         </div>
       </div>

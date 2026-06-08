@@ -579,3 +579,65 @@ ket pub/sub) and **BullMQ** (for queue processing).
 
 ---
 
+## 👤 User Input #9
+
+how the status functionality work on these app
+
+---
+
+### 🤖 Assistant Response
+
+In **HeyChat**, the status updates (similar to WhatsApp Stories) are built using a secure, privacy-first architecture. Here is a breakdown of how it works from creation to automatic deletion:
+
+---
+
+### 1. Status Creation & Encryption
+* **Types of Statuses:** The app supports two status types (handled inside the `createStatus` method of [status.service.js](file:///c:/Users/aN/Desktop/CHATAPP/chat-app-backend/src/modules/status/status.service.js#L11-L59)):
+  * **IMAGE Status:** Users upload an image. The file is uploaded through the backend to Cloudinary (under the `/status_images` folder) with a strict **5 MB size limit**.
+  * **TEXT Status:** Text updates that support a custom hex `backgroundColor`.
+* **Client-Side Encryption:** Just like direct chat messages, status text/captions are encrypted client-side using asymmetric keys. The server stores only the ciphertext in the `encryptedContent` field.
+
+---
+
+### 2. The 24-Hour Auto-Purge Queue (Prisma & Postgres Queue)
+To keep status updates temporary, the app uses a PostgreSQL-backed background job queue:
+1. When a status is created, the server sets its expiration date to exactly 24 hours in the future (`expiresAt = Date.now() + 24 hours`).
+2. The server immediately registers a background job named `'purge_status'` inside the database `JobQueue` table:
+   ```javascript
+   await queueService.addJob('purge_status', { statusId: status.id }, expiresAt);
+   ```
+3. A background worker (polling every 5 seconds) locks the job once the clock passes `expiresAt`, deletes the corresponding `Status` record from PostgreSQL (cascading deletes to all views and reactions), and completes the task.
+
+---
+
+### 3. Mutual Contacts Privacy Filter
+To prevent unauthorized users from viewing your statuses, the feed enforces **mutual contact restrictions** (see `listStatuses` at [status.service.js#L61-L123]):
+1. The server queries active **1-on-1 private conversations** (`chatType: 'PRIVATE'`) that the requesting user belongs to.
+2. It gathers the IDs of the other participants (mutual contacts).
+3. The server queries the database for active statuses *only* if the poster is either the **requesting user** or one of their **mutual contacts**, ensuring strict privacy boundaries.
+
+---
+
+### 4. Feed Grouping & Status Viewing
+* **Feed Splitting:** Statuses are sorted chronologically and grouped by the user who posted them. The endpoint returns:
+  * `self`: The user's own active statuses (including total `viewCount` statistics).
+  * `contacts`: The active status streams of mutual contacts, with flags indicating whether the status has been read (`viewed: true/false`).
+* **Recording Views & Reactions:**
+  * Opening a status calls `viewStatus` which registers or updates a `StatusView` composite record (`[statusId, viewerId]`). 
+  * Users can also react to status updates with a like (`isLiked: true`) or an `emoji`.
+
+---
+
+### 5. Viewer List Restrictions
+* **Status Owner Verification:** Status owners can request a list of who has viewed their status (`getStatusViewerList`).
+* **Security Guard:** The backend strictly checks ownership:
+  ```javascript
+  if (status.userId !== userId) {
+    throw new AppError('Only the status poster can view its viewers list', 403);
+  }
+  ```
+  This ensures that only the creator of the status update can inspect the names, profile pictures, and reactions of the viewers.
+
+---
+
+

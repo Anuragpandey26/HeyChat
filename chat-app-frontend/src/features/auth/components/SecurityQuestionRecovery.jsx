@@ -3,7 +3,12 @@ import apiClient from '../../../shared/lib/apiClient.js';
 import { Input } from '../../../shared/components/ui/Input.jsx';
 import { Button } from '../../../shared/components/ui/Button.jsx';
 import { HelpCircle, Key, CheckCircle } from 'lucide-react';
-import { deriveKeyPair } from '../../../shared/lib/crypto.js';
+import {
+  wrapPrivateKey,
+  unwrapPrivateKeyWithAnswer,
+  wrapPrivateKeyWithAnswer,
+  publicKeyFromPrivate,
+} from '../../../shared/lib/crypto.js';
 
 export const SecurityQuestionRecovery = ({ onCancel }) => {
   const [email, setEmail] = useState('');
@@ -14,6 +19,8 @@ export const SecurityQuestionRecovery = ({ onCancel }) => {
   
   const [step, setStep] = useState(1); // 1 = Verify Answer, 2 = Reset Password, 3 = Success
   const [recoveryToken, setRecoveryToken] = useState('');
+  const [recoveredPrivateKey, setRecoveredPrivateKey] = useState(null);
+  const [hasEscrowKey, setHasEscrowKey] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -34,6 +41,21 @@ export const SecurityQuestionRecovery = ({ onCancel }) => {
       });
       setRecoveryToken(res.data.data.recoveryToken);
       setUsername(res.data.data.username);
+
+      // Try to recover the private key from escrow
+      const escrowKey = res.data.data.securityEscrowKey;
+      if (escrowKey) {
+        try {
+          const privateKey = unwrapPrivateKeyWithAnswer(escrowKey, securityAnswer);
+          setRecoveredPrivateKey(privateKey);
+          setHasEscrowKey(true);
+        } catch (unwrapErr) {
+          console.warn('Escrow key recovery failed (old user or corrupted):', unwrapErr);
+          setRecoveredPrivateKey(null);
+          setHasEscrowKey(false);
+        }
+      }
+
       setStep(2);
     } catch (err) {
       setError(err.response?.data?.message || 'Incorrect recovery answer or email.');
@@ -63,15 +85,20 @@ export const SecurityQuestionRecovery = ({ onCancel }) => {
 
     setIsSubmitting(true);
     try {
-      // Derive new keypair from the new password and verified username
-      const keyPair = deriveKeyPair(username, newPassword);
-
-      await apiClient.post('/auth/recover/reset', {
+      const requestBody = {
         email,
         recoveryToken,
         newPassword,
-        publicKey: keyPair.publicKey, // Update database with new public key
-      });
+      };
+
+      if (recoveredPrivateKey) {
+        // ✅ Key wrapping: Re-wrap the SAME private key with the new password
+        // Public key stays the same → old messages remain readable!
+        requestBody.wrappedPrivateKey = wrapPrivateKey(recoveredPrivateKey, username, newPassword);
+        requestBody.securityEscrowKey = wrapPrivateKeyWithAnswer(recoveredPrivateKey, securityAnswer);
+      }
+
+      await apiClient.post('/auth/recover/reset', requestBody);
       setStep(3);
     } catch (err) {
       setError(err.response?.data?.message || 'Password reset failed. Please request recovery again.');
@@ -90,9 +117,15 @@ export const SecurityQuestionRecovery = ({ onCancel }) => {
         <p className="text-slate-400 text-xs font-medium leading-relaxed">
           Your account password has been updated.
         </p>
-        <div className="p-3.5 bg-emerald-950/25 border border-emerald-900/40 rounded-xl text-xs text-emerald-450 font-semibold my-2 shadow-sm leading-relaxed">
-          You can now log in using your new password. Note that for security reasons, resetting your password means messages sent prior to this reset cannot be read.
-        </div>
+        {hasEscrowKey ? (
+          <div className="p-3.5 bg-emerald-950/25 border border-emerald-900/40 rounded-xl text-xs text-emerald-450 font-semibold my-2 shadow-sm leading-relaxed">
+            ✅ Your encryption keys have been preserved. All your previous messages will remain readable after logging in with your new password.
+          </div>
+        ) : (
+          <div className="p-3.5 bg-amber-950/25 border border-amber-900/40 rounded-xl text-xs text-amber-450 font-semibold my-2 shadow-sm leading-relaxed">
+            ⚠️ Your password has been reset, but your encryption keys could not be recovered. Messages sent before this reset may not be readable.
+          </div>
+        )}
         <Button onClick={onCancel} className="w-full py-3">
           Back to Login
         </Button>
@@ -173,3 +206,4 @@ export const SecurityQuestionRecovery = ({ onCancel }) => {
     </div>
   );
 };
+

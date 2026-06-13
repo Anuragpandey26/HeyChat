@@ -57,6 +57,8 @@ export class AuthService {
         passwordHash,
         securityQuestionHash,
         publicKey: data.publicKey,
+        wrappedPrivateKey: data.wrappedPrivateKey || null,
+        securityEscrowKey: data.securityEscrowKey || null,
       },
       select: {
         id: true,
@@ -86,6 +88,7 @@ export class AuthService {
         username: user.username,
         email: user.email,
         fullName: user.fullName,
+        wrappedPrivateKey: user.wrappedPrivateKey || null,
       },
       ...tokens,
     };
@@ -158,10 +161,14 @@ export class AuthService {
     const recoveryToken = crypto.randomBytes(32).toString('hex');
     await this.cache.set(`recovery:${email}`, recoveryToken, 15 * 60); // 15 mins
 
-    return { recoveryToken, username: user.username };
+    return {
+      recoveryToken,
+      username: user.username,
+      securityEscrowKey: user.securityEscrowKey || null,
+    };
   }
 
-  async resetPassword(email, recoveryToken, newPassword, publicKey = null) {
+  async resetPassword(email, recoveryToken, newPassword, wrappedPrivateKey = null, securityEscrowKey = null) {
     const cachedToken = await this.cache.get(`recovery:${email}`);
     if (!cachedToken || cachedToken !== recoveryToken) {
       throw new AppError('Invalid or expired recovery session', 400);
@@ -174,13 +181,23 @@ export class AuthService {
 
     const passwordHash = await bcrypt.hash(newPassword, 12);
 
+    const updateData = {
+      passwordHash,
+    };
+
+    // Key wrapping: update the wrapped private key (re-wrapped with new password)
+    // Public key stays the same — only the wrapping changes
+    if (wrappedPrivateKey) {
+      updateData.wrappedPrivateKey = wrappedPrivateKey;
+    }
+    if (securityEscrowKey) {
+      updateData.securityEscrowKey = securityEscrowKey;
+    }
+
     await this.db.$transaction([
       this.db.user.update({
         where: { email },
-        data: {
-          passwordHash,
-          ...(publicKey ? { publicKey } : {}),
-        },
+        data: updateData,
       }),
       this.db.refreshToken.deleteMany({
         where: { userId: user.id },

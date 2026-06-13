@@ -50,6 +50,8 @@ model User {
   passwordHash         String            @db.VarChar(255)
   securityQuestionHash String            @db.VarChar(255)
   publicKey            String            @db.Text
+  wrappedPrivateKey    String?           @db.Text
+  securityEscrowKey    String?           @db.Text
   isOnline             Boolean           @default(false)
   lastSeen             DateTime          @default(now())
   createdAt            DateTime          @default(now())

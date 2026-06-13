@@ -22,6 +22,7 @@ export class UsersService {
         phoneNumber: true,
         profilePictureUrl: true,
         publicKey: true,
+        wrappedPrivateKey: true,
         isOnline: true,
         lastSeen: true,
         createdAt: true,
@@ -77,6 +78,7 @@ export class UsersService {
         bio: data.bio,
         phoneNumber: data.phoneNumber,
         username: data.username,
+        ...(data.wrappedPrivateKey ? { wrappedPrivateKey: data.wrappedPrivateKey } : {}),
       },
       select: {
         id: true,

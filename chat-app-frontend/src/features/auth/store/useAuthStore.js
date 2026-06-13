@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import apiClient from '../../../shared/lib/apiClient.js';
-import { deriveKeyPair } from '../../../shared/lib/crypto.js';
+import {
+  generateKeyPair,
+  deriveKeyPair,
+  wrapPrivateKey,
+  unwrapPrivateKey,
+  wrapPrivateKeyWithAnswer,
+  publicKeyFromPrivate,
+} from '../../../shared/lib/crypto.js';
 import { connectSocket, disconnectSocket } from '../../../app/socket.js';
 
 export const useAuthStore = create((set, get) => ({
@@ -57,17 +64,37 @@ export const useAuthStore = create((set, get) => ({
       const res = await apiClient.post('/auth/login', { email, password });
       const userData = res.data.data.user;
 
-      // Derive keypair deterministically
-      const keyPair = deriveKeyPair(userData.username, password);
+      let privateKey;
+      let publicKey;
+
+      if (userData.wrappedPrivateKey) {
+        // ✅ New system: Unwrap the private key using the password
+        privateKey = unwrapPrivateKey(userData.wrappedPrivateKey, userData.username, password);
+        publicKey = publicKeyFromPrivate(privateKey);
+      } else {
+        // 🔄 Legacy migration: Old user without wrappedPrivateKey
+        // Derive keys the old way, then auto-migrate to key wrapping
+        const legacyKeyPair = deriveKeyPair(userData.username, password);
+        privateKey = legacyKeyPair.privateKey;
+        publicKey = legacyKeyPair.publicKey;
+
+        // Auto-migrate: wrap the key and save to server
+        const wrappedPrivateKey = wrapPrivateKey(privateKey, userData.username, password);
+        try {
+          await apiClient.patch('/users/me', { wrappedPrivateKey });
+        } catch (migrationErr) {
+          console.warn('Auto-migration of key wrapping failed (non-critical):', migrationErr);
+        }
+      }
 
       // Save to sessionStorage for refresh tolerance
-      sessionStorage.setItem('privateKey', keyPair.privateKey);
-      sessionStorage.setItem('publicKey', keyPair.publicKey);
+      sessionStorage.setItem('privateKey', privateKey);
+      sessionStorage.setItem('publicKey', publicKey);
 
       set({
         user: userData,
-        privateKey: keyPair.privateKey,
-        publicKey: keyPair.publicKey,
+        privateKey,
+        publicKey,
         isAuthenticated: true,
         isLoading: false,
       });
@@ -84,8 +111,14 @@ export const useAuthStore = create((set, get) => ({
   register: async ({ username, email, fullName, password, securityQuestion, securityQuestionAnswer, bio, phoneNumber }) => {
     set({ isLoading: true, error: null });
     try {
-      // Derive keypair before registration to send the public key
-      const keyPair = deriveKeyPair(username, password);
+      // Generate random key pair (called ONCE, keys never change)
+      const keyPair = generateKeyPair();
+
+      // Wrap the private key with password-derived key
+      const wrappedPrivateKey = wrapPrivateKey(keyPair.privateKey, username, password);
+
+      // Create escrow backup with security question answer
+      const securityEscrowKey = wrapPrivateKeyWithAnswer(keyPair.privateKey, securityQuestionAnswer);
 
       await apiClient.post('/auth/register', {
         username,
@@ -94,6 +127,8 @@ export const useAuthStore = create((set, get) => ({
         password,
         securityQuestionHash: securityQuestionAnswer,
         publicKey: keyPair.publicKey,
+        wrappedPrivateKey,
+        securityEscrowKey,
         bio,
         phoneNumber,
       });

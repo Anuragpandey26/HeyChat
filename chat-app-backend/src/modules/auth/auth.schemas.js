@@ -8,6 +8,8 @@ export const registerSchema = z.object({
     password: z.string().min(8, 'Password must be at least 8 characters'),
     securityQuestionHash: z.string().min(5, 'Security question hash is required'),
     publicKey: z.string().min(10, 'E2EE public key is required'),
+    wrappedPrivateKey: z.string().min(10, 'Wrapped private key is required'),
+    securityEscrowKey: z.string().min(10, 'Security escrow key is required'),
     phoneNumber: z.string().max(20).optional(),
     bio: z.string().max(139).optional(),
   }),
@@ -32,6 +34,7 @@ export const recoverResetSchema = z.object({
     email: z.string().email('Invalid email address'),
     newPassword: z.string().min(8, 'Password must be at least 8 characters'),
     recoveryToken: z.string().min(10, 'Recovery token is required'),
-    publicKey: z.string().min(10, 'E2EE public key is required').optional(),
+    wrappedPrivateKey: z.string().min(10, 'Wrapped private key is required'),
+    securityEscrowKey: z.string().min(10, 'Security escrow key is required').optional(),
   }),
 });

@@ -131,8 +131,8 @@ export class AuthController {
 
   async resetPassword(req, res, next) {
     try {
-      const { email, recoveryToken, newPassword, publicKey } = req.body;
-      await authService.resetPassword(email, recoveryToken, newPassword, publicKey);
+      const { email, recoveryToken, newPassword, wrappedPrivateKey, securityEscrowKey } = req.body;
+      await authService.resetPassword(email, recoveryToken, newPassword, wrappedPrivateKey, securityEscrowKey);
 
       res.status(200).json({
         status: 'success',

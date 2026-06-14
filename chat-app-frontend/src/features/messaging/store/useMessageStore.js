@@ -3,7 +3,7 @@ import apiClient from '../../../shared/lib/apiClient.js';
 import { decryptMessage } from '../../../shared/lib/crypto.js';
 import socket from '../../../app/socket.js';
 
-export const useMessageStore = create((set, get) => ({
+export const useMessageStore = create((set) => ({
   messagesByChatId: {}, // chatId -> Array of Messages
   typingUsersByChatId: {}, // chatId -> Array of userIds
   isLoading: false,
@@ -203,13 +203,46 @@ export const useMessageStore = create((set, get) => ({
     });
   },
 
-  setTypingUsers: (chatId, userId, isTyping) => {
+  editMessageLocally: (chatId, messageId, encryptedContent, editedAt, currentUserId, privateKey, recipientPublicKey = null) => {
+    set((state) => {
+      const currentMsgs = state.messagesByChatId[chatId] || [];
+      return {
+        messagesByChatId: {
+          ...state.messagesByChatId,
+          [chatId]: currentMsgs.map((m) => {
+            if (m.id !== messageId) return m;
+
+            let decryptedContent = encryptedContent;
+            if (recipientPublicKey && encryptedContent && !m.isDeletedEveryone) {
+              const isSender = m.senderId === currentUserId || m.sender?.id === currentUserId;
+              const otherPublicKey = isSender ? recipientPublicKey : m.sender?.publicKey;
+              if (otherPublicKey) {
+                try {
+                  decryptedContent = decryptMessage(encryptedContent, otherPublicKey, privateKey);
+                } catch (err) {
+                  console.error('Failed to decrypt edited message:', err);
+                  decryptedContent = encryptedContent;
+                }
+              }
+            }
+            return { ...m, encryptedContent, decryptedContent, editedAt };
+          }),
+        },
+      };
+    });
+  },
+
+  setTypingUsers: (chatId, typingUserInfo, isTyping) => {
     set((state) => {
       const typing = [...(state.typingUsersByChatId[chatId] || [])];
-      const existIdx = typing.indexOf(userId);
+      const userId = typeof typingUserInfo === 'string' ? typingUserInfo : typingUserInfo?.userId;
+
+      if (!userId) return state;
+
+      const existIdx = typing.findIndex((u) => (typeof u === 'string' ? u === userId : u.userId === userId));
 
       if (isTyping && existIdx === -1) {
-        typing.push(userId);
+        typing.push(typeof typingUserInfo === 'string' ? { userId } : typingUserInfo);
       } else if (!isTyping && existIdx !== -1) {
         typing.splice(existIdx, 1);
       }

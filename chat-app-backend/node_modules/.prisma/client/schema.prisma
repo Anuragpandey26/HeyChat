@@ -25,6 +25,7 @@ enum MediaType {
   PDF
   LINK
   POLL
+  AUDIO
 }
 
 enum ReceiptStatus {

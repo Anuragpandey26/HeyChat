@@ -19,7 +19,7 @@ export class CloudinaryAdapter extends StorageAdapter {
 
       if (mimeType.startsWith('image/')) {
         resourceType = 'image';
-      } else if (mimeType.startsWith('video/')) {
+      } else if (mimeType.startsWith('video/') || mimeType.startsWith('audio/')) {
         resourceType = 'video';
       } else {
         resourceType = 'raw';

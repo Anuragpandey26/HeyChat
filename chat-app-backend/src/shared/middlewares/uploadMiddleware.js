@@ -14,6 +14,13 @@ const fileFilter = (req, file, cb) => {
     'video/mpeg',
     'video/quicktime',
     'video/webm',
+    'audio/webm',
+    'audio/ogg',
+    'audio/mp4',
+    'audio/mpeg',
+    'audio/wav',
+    'audio/x-m4a',
+    'audio/aac',
   ];
 
   if (allowedMimeTypes.includes(file.mimetype)) {
@@ -21,7 +28,7 @@ const fileFilter = (req, file, cb) => {
   } else {
     cb(
       new AppError(
-        'Invalid file type. Only JPEG, PNG, GIF, WEBP images, PDFs, and MP4/MPEG/Quicktime/WEBM videos are allowed.',
+        'Invalid file type. Only JPEG, PNG, GIF, WEBP images, PDFs, videos, and voice recordings are allowed.',
         400
       ),
       false

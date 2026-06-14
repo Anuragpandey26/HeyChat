@@ -1,25 +1,154 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '../../auth/store/useAuthStore.js';
-import { useChatStore } from '../../chats/store/useChatStore.js';
 import { useMessageStore } from '../store/useMessageStore.js';
 import { formatMessageTime } from '../../../shared/utils/format.js';
 import socket from '../../../app/socket.js';
-import { Trash2, Heart, Smile, Check, CheckCheck, FileText, Play, Copy } from 'lucide-react';
+import { Trash2, Smile, Check, CheckCheck, FileText, Play, Pause, Copy, Pencil } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn.js';
 import { Modal } from '../../../shared/components/ui/Modal.jsx';
 import { Button } from '../../../shared/components/ui/Button.jsx';
+import { encryptMessage } from '../../../shared/lib/crypto.js';
 
 const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
-export const ChatBubble = ({ message, chatType, isGroupAdmin = false }) => {
-  const { user: currentUser } = useAuthStore();
-  const { activeChatId } = useChatStore();
+const AudioPlayer = ({ mediaUrl, isSelf }) => {
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const audioRef = React.useRef(null);
+
+  const togglePlay = () => {
+    if (audioRef.current) {
+      if (isPlaying) {
+        audioRef.current.pause();
+      } else {
+        audioRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (audioRef.current) {
+      setCurrentTime(audioRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (audioRef.current) {
+      setDuration(audioRef.current.duration);
+    }
+  };
+
+  const handleSeek = (e) => {
+    if (audioRef.current && duration > 0) {
+      const seekTime = Number(e.target.value);
+      audioRef.current.currentTime = seekTime;
+      setCurrentTime(seekTime);
+    }
+  };
+
+  const formatTime = (secs) => {
+    if (isNaN(secs)) return '0:00';
+    const mins = Math.floor(secs / 60);
+    const remainingSecs = Math.floor(secs % 60);
+    return `${mins}:${remainingSecs < 10 ? '0' : ''}${remainingSecs}`;
+  };
+
+  return (
+    <div className="flex items-center gap-3 py-1.5 px-0.5 rounded-xl min-w-[200px] sm:min-w-[240px] max-w-sm">
+      <audio
+        ref={audioRef}
+        src={mediaUrl}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onEnded={() => setIsPlaying(false)}
+        className="hidden"
+        preload="metadata"
+      />
+      <button
+        type="button"
+        onClick={togglePlay}
+        className={cn(
+          "w-9 h-9 rounded-full flex items-center justify-center transition-all shadow-sm active:scale-95",
+          isSelf 
+            ? "bg-white/20 hover:bg-white/30 text-white" 
+            : "bg-brand-600 hover:bg-brand-500 text-white"
+        )}
+      >
+        {isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current translate-x-[1px]" />}
+      </button>
+      <div className="flex-1 flex flex-col gap-1.5 min-w-0 text-left justify-center">
+        <input
+          type="range"
+          min="0"
+          max={duration || 100}
+          value={currentTime}
+          onChange={handleSeek}
+          className={cn(
+            "w-full h-1 rounded-lg appearance-none cursor-pointer focus:outline-none transition-colors",
+            isSelf ? "accent-white bg-white/25" : "accent-brand-500 bg-slate-800"
+          )}
+        />
+        <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 select-none">
+          <span className="font-mono">{formatTime(currentTime)}</span>
+          <span className="font-mono">{formatTime(duration)}</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const ChatBubble = ({ message, chatType, isGroupAdmin = false, recipientPublicKey = null }) => {
+  const { user: currentUser, privateKey } = useAuthStore();
   const { deleteMessageForMe } = useMessageStore();
   
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [isWithin48h, setIsWithin48h] = useState(false);
+
+  useEffect(() => {
+    const checkTime = () => {
+      setIsWithin48h(Date.now() - new Date(message.sentAt).getTime() < 48 * 60 * 60 * 1000);
+    };
+    checkTime();
+  }, [message.sentAt]);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isViewVotesOpen, setIsViewVotesOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState('');
+
+  const handleSaveEdit = async () => {
+    if (!editText.trim()) return;
+    if (editText.trim() === (message.decryptedContent || message.encryptedContent)) {
+      setIsEditing(false);
+      return;
+    }
+
+    let contentToSend = editText.trim();
+
+    // E2EE re-encryption in private chat
+    if (chatType === 'PRIVATE' && recipientPublicKey) {
+      try {
+        contentToSend = encryptMessage(editText.trim(), recipientPublicKey, privateKey);
+      } catch (err) {
+        console.error('Failed to encrypt edited message:', err);
+        alert('Failed to encrypt message securely');
+        return;
+      }
+    }
+
+    socket.emit('edit_message', {
+      messageId: message.id,
+      encryptedContent: contentToSend,
+    }, (res) => {
+      if (res.status === 'success') {
+        setIsEditing(false);
+      } else {
+        alert(res.message || 'Failed to edit message');
+      }
+    });
+  };
 
   const handleCopy = () => {
     const content = message.decryptedContent || message.encryptedContent;
@@ -383,12 +512,48 @@ export const ChatBubble = ({ message, chatType, isGroupAdmin = false }) => {
               message.isDeletedEveryone && "italic text-slate-400 font-medium select-none"
             )}
           >
-            {renderMessageContent()}
+            {message.mediaType === 'AUDIO' && message.mediaUrl && !message.isDeletedEveryone ? (
+              <AudioPlayer mediaUrl={message.mediaUrl} isSelf={isSelf} />
+            ) : isEditing ? (
+              <div className="flex flex-col gap-2 mt-1 min-w-[180px] max-w-full z-10">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="w-full p-2 bg-slate-950/70 border border-slate-800 rounded-lg text-slate-100 text-xs focus:outline-none focus:border-brand-500 resize-none max-h-32"
+                  rows={2}
+                  autoFocus
+                />
+                <div className="flex justify-end gap-1.5">
+                  <button
+                    onClick={() => setIsEditing(false)}
+                    className="px-2 py-0.5 text-[9px] bg-slate-800 hover:bg-slate-750 text-slate-300 font-bold rounded transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveEdit}
+                    className="px-2 py-0.5 text-[9px] bg-brand-600 hover:bg-brand-500 text-white font-bold rounded transition-colors"
+                  >
+                    Save
+                  </button>
+                </div>
+              </div>
+            ) : (
+              renderMessageContent()
+            )}
           </div>
         )}
 
         {/* Timestamp & Checks footer */}
         <div className="flex items-center justify-end gap-1.5 mt-1.5 -mr-1">
+          {message.editedAt && !message.isDeletedEveryone && (
+            <span className={cn(
+              "text-[8px] font-bold italic opacity-70",
+              isSelf ? "text-slate-350" : "text-slate-500"
+            )}>
+              (edited)
+            </span>
+          )}
           <span
             className={cn(
               "text-[9px] font-medium",
@@ -487,6 +652,20 @@ export const ChatBubble = ({ message, chatType, isGroupAdmin = false }) => {
           </button>
         )}
 
+        {/* Edit Button (Only if my own TEXT message, not deleted, and within 48 hours) */}
+        {isSelf && message.mediaType === 'TEXT' && !message.isDeletedEveryone && isWithin48h && (
+          <button
+            onClick={() => {
+              setEditText(message.decryptedContent || message.encryptedContent || '');
+              setIsEditing(true);
+            }}
+            className="p-1.5 bg-slate-900 border border-slate-800 hover:bg-slate-850 rounded-lg text-slate-400 hover:text-slate-200 transition-colors shadow-sm"
+            title="Edit Message"
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
+        )}
+
         {/* Delete Options Button */}
         <button
           onClick={() => setIsDeleteOpen(true)}
@@ -521,7 +700,7 @@ export const ChatBubble = ({ message, chatType, isGroupAdmin = false }) => {
             variant="outline"
             className="w-full text-slate-350 hover:text-white hover:bg-slate-800 border-slate-800 flex items-center justify-center gap-2"
           >
-            <Trash2 className="h-4 w-4 text-slate-450" />
+            <Trash2 className="h-4 w-4 text-slate-400" />
             Delete for Me
           </Button>
 

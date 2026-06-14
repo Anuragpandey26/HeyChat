@@ -1,12 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useChatStore } from '../store/useChatStore.js';
 import { useAuthStore } from '../../auth/store/useAuthStore.js';
 import { ChatListItem } from './ChatListItem.jsx';
 import { CreateChatModal } from './CreateChatModal.jsx';
-import { MessageSquarePlus, LogOut, Settings, Search, ShieldCheck, Bell, Trash2, ArrowLeft, Users, RefreshCw } from 'lucide-react';
+import { MessageSquarePlus, LogOut, Settings, Search, Bell, Trash2, ArrowLeft, Users, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useNotifications } from '../../notifications/components/NotificationProvider.jsx';
 import { cn } from '../../../shared/utils/cn.js';
+import socket from '../../../app/socket.js';
 
 const fuzzyMatch = (text, query) => {
   if (!query) return true;
@@ -44,7 +45,7 @@ export const ChatList = () => {
   const navigate = useNavigate();
   const { chats, activeChatId, fetchChats, selectChat, allUsers, fetchAllUsers, createPrivateChat } = useChatStore();
   const { user: currentUser, logout } = useAuthStore();
-  const { notifications, clearNotifications, removeNotification } = useNotifications();
+  const { notifications, clearNotifications } = useNotifications();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -56,6 +57,14 @@ export const ChatList = () => {
     const interval = setInterval(fetchChats, 15000);
     return () => clearInterval(interval);
   }, [fetchChats]);
+
+  // Join all chat rooms to receive real-time events (e.g. typing indicators) globally
+  useEffect(() => {
+    if (chats.length > 0 && currentUser && socket) {
+      const chatIds = chats.map((c) => c.chatId);
+      socket.emit('join_chats', chatIds);
+    }
+  }, [chats, currentUser]);
 
   // Load and poll all users when users directory view is active
   useEffect(() => {

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuthStore } from '../store/useAuthStore.js';
 import { Input } from '../../../shared/components/ui/Input.jsx';
 import { Button } from '../../../shared/components/ui/Button.jsx';
@@ -68,7 +68,7 @@ export const RegisterForm = ({ onToggleForm }) => {
         phoneNumber,
       });
       setSuccess(true);
-    } catch (err) {
+    } catch {
       // Error handled by store
     } finally {
       setIsSubmitting(false);
@@ -82,7 +82,7 @@ export const RegisterForm = ({ onToggleForm }) => {
         <p className="text-slate-400 text-xs font-medium leading-relaxed">
           Your secure account has been created successfully.
         </p>
-        <div className="p-3.5 bg-emerald-950/25 border border-emerald-900/40 rounded-xl text-xs font-semibold text-emerald-450 my-2 shadow-sm leading-relaxed">
+        <div className="p-3.5 bg-emerald-950/25 border border-emerald-900/40 rounded-xl text-xs font-semibold text-emerald-400 my-2 shadow-sm leading-relaxed">
           You can now log in using your password to access your chats.
         </div>
         <Button onClick={onToggleForm} className="w-full py-3">
@@ -142,7 +142,7 @@ export const RegisterForm = ({ onToggleForm }) => {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs font-semibold text-slate-450 select-none uppercase tracking-wider">
+        <label className="text-xs font-semibold text-slate-400 select-none uppercase tracking-wider">
           Security Question (For Recovery)*
         </label>
         <select

@@ -15,6 +15,7 @@ const envSchema = z.object({
   MAX_IMAGE_SIZE_BYTES: z.string().transform(Number).default('1024'),
   MAX_PDF_SIZE_BYTES: z.string().transform(Number).default('2097152'),
   MAX_VIDEO_SIZE_BYTES: z.string().transform(Number).default('5242880'),
+  MAX_AUDIO_SIZE_BYTES: z.string().transform(Number).default('2097152'),
   CLOUDINARY_CLOUD_NAME: z.string().optional(),
   CLOUDINARY_API_KEY: z.string().optional(),
   CLOUDINARY_API_SECRET: z.string().optional(),

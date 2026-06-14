@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuthStore } from '../../auth/store/useAuthStore.js';
 import { useChatStore } from '../../chats/store/useChatStore.js';
+import { useMessageStore } from '../../messaging/store/useMessageStore.js';
 import { decryptMessage } from '../../../shared/lib/crypto.js';
 import { formatMessageTime } from '../../../shared/utils/format.js';
-import { Pin, Users, MessageSquare, Trash2 } from 'lucide-react';
+import { Pin, Users, Trash2 } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn.js';
 import { Modal } from '../../../shared/components/ui/Modal.jsx';
 import { Button } from '../../../shared/components/ui/Button.jsx';
@@ -11,6 +12,9 @@ import { Button } from '../../../shared/components/ui/Button.jsx';
 export const ChatListItem = ({ chat, isActive, onClick }) => {
   const { user: currentUser, privateKey } = useAuthStore();
   const { deleteChat, removeGroupMember } = useChatStore();
+  const typingUsers = useMessageStore((state) => state.typingUsersByChatId[chat.chatId]);
+  const otherTypingUsers = (typingUsers || []).filter((u) => u.userId !== currentUser?.id);
+  const isTyping = otherTypingUsers.length > 0;
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const isGroup = chat.chatType === 'GROUP';
 
@@ -79,7 +83,7 @@ export const ChatListItem = ({ chat, isActive, onClick }) => {
           />
         ) : (
           <div className="w-11 h-11 rounded-full bg-gradient-to-tr from-slate-800 to-slate-850 border border-slate-700 flex items-center justify-center text-xs font-bold text-slate-300 group-hover:scale-105 transition-transform duration-200 shadow-inner">
-            {isGroup ? <Users className="h-5 w-5 text-slate-450" /> : initials}
+            {isGroup ? <Users className="h-5 w-5 text-slate-400" /> : initials}
           </div>
         )}
         
@@ -101,9 +105,17 @@ export const ChatListItem = ({ chat, isActive, onClick }) => {
         </div>
 
         <div className="flex items-center justify-between">
-          <p className="text-xs truncate text-slate-400 font-medium">
-            {chat.lastMessage ? lastMessageText : <span className="italic text-slate-500">No messages yet</span>}
-          </p>
+          {isTyping ? (
+            <p className="text-xs truncate text-emerald-400 font-bold animate-pulse">
+              {isGroup 
+                ? `${otherTypingUsers[0].fullName || otherTypingUsers[0].username || 'Someone'} is typing...` 
+                : 'typing...'}
+            </p>
+          ) : (
+            <p className="text-xs truncate text-slate-400 font-medium">
+              {chat.lastMessage ? lastMessageText : <span className="italic text-slate-500">No messages yet</span>}
+            </p>
+          )}
 
           <div className="flex items-center gap-1.5 ml-2 relative">
             <div className="flex items-center gap-1.5 group-hover:opacity-0 transition-opacity duration-150">
@@ -158,7 +170,7 @@ export const ChatListItem = ({ chat, isActive, onClick }) => {
               variant="outline"
               className="w-full text-slate-350 hover:text-white hover:bg-slate-800 border-slate-800 flex items-center justify-center gap-2"
             >
-              <Trash2 className="h-4 w-4 text-slate-450" />
+              <Trash2 className="h-4 w-4 text-slate-400" />
               {isGroup ? 'Clear Chat History' : 'Delete for Me'}
             </Button>
 

@@ -226,16 +226,60 @@ export class MessagesService {
         const mb = Math.round((env.MAX_VIDEO_SIZE_BYTES / (1024 * 1024)) * 10) / 10;
         throw new AppError(`Encrypted video exceeds safe size limit of ${mb} MB`, 400);
       }
+    } else if (mimeType.startsWith('audio/')) {
+      if (fileBuffer.length > env.MAX_AUDIO_SIZE_BYTES) {
+        const mb = Math.round((env.MAX_AUDIO_SIZE_BYTES / (1024 * 1024)) * 10) / 10;
+        throw new AppError(`Audio recording exceeds limit of ${mb} MB`, 400);
+      }
     }
 
     const folder = mimeType.startsWith('image/')
       ? 'images'
       : mimeType.startsWith('video/')
       ? 'videos'
+      : mimeType.startsWith('audio/')
+      ? 'audios'
       : 'docs';
 
     const fileUrl = await this.storage.upload(fileBuffer, mimeType, folder);
     return fileUrl;
+  }
+
+  async editMessage(userId, messageId, newEncryptedContent) {
+    const message = await this.db.message.findUnique({
+      where: { id: messageId },
+    });
+
+    if (!message) {
+      throw new AppError('Message not found', 404);
+    }
+
+    if (message.isDeletedEveryone) {
+      throw new AppError('Cannot edit a deleted message', 400);
+    }
+
+    if (message.senderId !== userId) {
+      throw new AppError('You can only edit your own messages', 403);
+    }
+
+    if (message.mediaType !== 'TEXT') {
+      throw new AppError('Only text messages can be edited', 400);
+    }
+
+    const fortyEightHoursAgo = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    if (message.sentAt < fortyEightHoursAgo) {
+      throw new AppError('Messages can only be edited within 48 hours of sending', 400);
+    }
+
+    const updatedMessage = await this.db.message.update({
+      where: { id: messageId },
+      data: {
+        encryptedContent: newEncryptedContent,
+        editedAt: new Date(),
+      },
+    });
+
+    return updatedMessage;
   }
 
   async deleteForEveryone(userId, messageId) {

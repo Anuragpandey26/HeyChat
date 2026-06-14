@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useAuthStore } from '../features/auth/store/useAuthStore.js';
 import { useChatStore } from '../features/chats/store/useChatStore.js';
 import { Input } from '../shared/components/ui/Input.jsx';
 import { Textarea } from '../shared/components/ui/Textarea.jsx';
 import { Button } from '../shared/components/ui/Button.jsx';
-import { ArrowLeft, User, Camera, ShieldAlert, Check, FileText } from 'lucide-react';
+import { ArrowLeft, Camera, Check, FileText } from 'lucide-react';
 import { useNavigate, useParams } from 'react-router-dom';
 import apiClient from '../shared/lib/apiClient.js';
 
@@ -34,9 +34,11 @@ export default function Profile() {
   // Sync self profile details
   useEffect(() => {
     if (isSelf && currentUser) {
-      setFullName(currentUser.fullName || '');
-      setPhoneNumber(currentUser.phoneNumber || '');
-      setBio(currentUser.bio || '');
+      setTimeout(() => {
+        setFullName(currentUser.fullName || '');
+        setPhoneNumber(currentUser.phoneNumber || '');
+        setBio(currentUser.bio || '');
+      }, 0);
     }
   }, [isSelf, currentUser]);
 
@@ -289,7 +291,7 @@ export default function Profile() {
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 select-none">
                   Phone Number
                 </span>
-                <p className="text-xs text-slate-255 bg-slate-950/50 px-4 py-3 rounded-2xl border border-slate-850/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]">
+                <p className="text-xs text-slate-200 bg-slate-950/50 px-4 py-3 rounded-2xl border border-slate-850/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]">
                   {profileUser.phoneNumber || <span className="italic text-slate-500">No phone number provided</span>}
                 </p>
               </div>
@@ -298,7 +300,7 @@ export default function Profile() {
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1.5 select-none">
                   About (Bio)
                 </span>
-                <p className="text-xs text-slate-255 bg-slate-950/50 px-4 py-3 rounded-2xl border border-slate-850/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)] leading-relaxed italic">
+                <p className="text-xs text-slate-200 bg-slate-950/50 px-4 py-3 rounded-2xl border border-slate-850/60 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)] leading-relaxed italic">
                   "{profileUser.bio || "Hey there! I am using ChatApp."}"
                 </p>
               </div>

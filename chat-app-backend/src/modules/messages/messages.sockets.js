@@ -395,12 +395,40 @@ export const registerMessageSockets = (io, socket) => {
   });
 
   // 4. Typing Indicators
-  socket.on('typing_start', (chatId) => {
-    socket.to(`chat:${chatId}`).emit('user_typing', { chatId, userId, isTyping: true });
+  socket.on('typing_start', (payload) => {
+    const chatId = typeof payload === 'string' ? payload : payload?.chatId;
+    const username = payload?.username || '';
+    const fullName = payload?.fullName || '';
+    socket.to(`chat:${chatId}`).emit('user_typing', { chatId, userId, isTyping: true, username, fullName });
   });
 
   socket.on('typing_stop', (chatId) => {
     socket.to(`chat:${chatId}`).emit('user_typing', { chatId, userId, isTyping: false });
+  });
+
+  // 4b. Edit Message
+  socket.on('edit_message', async (payload, callback) => {
+    try {
+      const { messageId, encryptedContent } = payload;
+      if (!messageId || !encryptedContent) {
+        return callback?.({ status: 'error', message: 'Message ID and content are required' });
+      }
+
+      const updatedMsg = await messagesService.editMessage(userId, messageId, encryptedContent);
+
+      // Broadcast update to the chat room
+      io.emitToRoom(`chat:${updatedMsg.chatId}`, 'message_edited', {
+        messageId,
+        chatId: updatedMsg.chatId,
+        encryptedContent: updatedMsg.encryptedContent,
+        editedAt: updatedMsg.editedAt,
+      });
+
+      callback?.({ status: 'success', data: updatedMsg });
+    } catch (err) {
+      console.error('Socket edit_message error:', err);
+      callback?.({ status: 'error', message: err.message || 'Failed to edit message' });
+    }
   });
 
   // 5. Delete Message for Everyone

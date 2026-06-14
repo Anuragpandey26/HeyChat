@@ -14,6 +14,7 @@ export const useSocketMessages = (chatId, recipientPublicKey = null) => {
     updateReaction,
     updatePoll,
     setTypingUsers,
+    editMessageLocally,
   } = useMessageStore();
 
   useEffect(() => {
@@ -48,9 +49,27 @@ export const useSocketMessages = (chatId, recipientPublicKey = null) => {
       }
     };
 
+    const handleMessageEdited = (data) => {
+      if (data.chatId === chatId) {
+        editMessageLocally(
+          chatId,
+          data.messageId,
+          data.encryptedContent,
+          data.editedAt,
+          currentUser.id,
+          privateKey,
+          recipientPublicKey
+        );
+      }
+    };
+
     const handleUserTyping = (data) => {
       if (data.chatId === chatId) {
-        setTypingUsers(chatId, data.userId, data.isTyping);
+        setTypingUsers(
+          chatId,
+          { userId: data.userId, username: data.username, fullName: data.fullName },
+          data.isTyping
+        );
       }
     };
 
@@ -76,6 +95,7 @@ export const useSocketMessages = (chatId, recipientPublicKey = null) => {
     socket.on('receive_message', handleReceiveMessage);
     socket.on('tick_updated', handleTickUpdated);
     socket.on('message_deleted', handleMessageDeleted);
+    socket.on('message_edited', handleMessageEdited);
     socket.on('user_typing', handleUserTyping);
     socket.on('receive_reaction', handleReceiveReaction);
     socket.on('poll_updated', handlePollUpdated);
@@ -86,6 +106,7 @@ export const useSocketMessages = (chatId, recipientPublicKey = null) => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('tick_updated', handleTickUpdated);
       socket.off('message_deleted', handleMessageDeleted);
+      socket.off('message_edited', handleMessageEdited);
       socket.off('user_typing', handleUserTyping);
       socket.off('receive_reaction', handleReceiveReaction);
       socket.off('poll_updated', handlePollUpdated);
@@ -102,6 +123,7 @@ export const useSocketMessages = (chatId, recipientPublicKey = null) => {
     updateReaction,
     updatePoll,
     setTypingUsers,
+    editMessageLocally,
     fetchChats,
     selectChat,
   ]);

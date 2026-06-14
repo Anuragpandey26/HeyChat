@@ -1,5 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useChatStore } from '../../chats/store/useChatStore.js';
 import { useMessageStore } from '../store/useMessageStore.js';
 import { useAuthStore } from '../../auth/store/useAuthStore.js';
@@ -7,7 +6,7 @@ import { useSocketMessages } from '../hooks/useSocketMessages.js';
 import { ChatBubble } from './ChatBubble.jsx';
 import { ChatInput } from './ChatInput.jsx';
 import { formatLastSeen } from '../../../shared/utils/format.js';
-import { Users, LogOut, ShieldAlert, ArrowLeft, Trash2, Phone, Video, UserPlus, Search, Camera, FileText, Link } from 'lucide-react';
+import { Users, LogOut, ShieldAlert, ArrowLeft, Trash2, UserPlus, FileText, Link } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn.js';
 import { Button } from '../../../shared/components/ui/Button.jsx';
 import { Input } from '../../../shared/components/ui/Input.jsx';
@@ -15,7 +14,6 @@ import { Textarea } from '../../../shared/components/ui/Textarea.jsx';
 import apiClient from '../../../shared/lib/apiClient.js';
 
 export const ChatWindow = () => {
-  const navigate = useNavigate();
   const { user: currentUser, privateKey } = useAuthStore();
   const { chats, activeChatId, updateGroupSettings, addGroupMember, removeGroupMember, selectChat, deleteChat, blockUser, unblockUser } = useChatStore();
   const { messagesByChatId, fetchMessages, typingUsersByChatId, isLoading } = useMessageStore();
@@ -59,26 +57,28 @@ export const ChatWindow = () => {
   useEffect(() => {
     if (activeChatId && currentUser && privateKey) {
       fetchMessages(activeChatId, currentUser.id, privateKey, recipientPublicKey);
-      setShowInfo(false);
+      setTimeout(() => setShowInfo(false), 0);
     }
   }, [activeChatId, currentUser, privateKey, recipientPublicKey, fetchMessages]);
 
   // Sync group details editing state when group settings change
   useEffect(() => {
     if (activeChat && activeChat.chatType === 'GROUP') {
-      setGroupName(activeChat.groupDetails.groupName);
-      setGroupDesc(activeChat.groupDetails.description || '');
-      setOnlyAdminsSend(activeChat.groupDetails.onlyAdminsCanSend);
+      setTimeout(() => {
+        setGroupName(activeChat.groupDetails.groupName);
+        setGroupDesc(activeChat.groupDetails.description || '');
+        setOnlyAdminsSend(activeChat.groupDetails.onlyAdminsCanSend);
+      }, 0);
     }
   }, [activeChat]);
 
   // Scroll to bottom on new messages
-  const messages = messagesByChatId[activeChatId] || [];
+  const messages = useMemo(() => messagesByChatId[activeChatId] || [], [messagesByChatId, activeChatId]);
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const fetchGroupMembersList = async () => {
+  const fetchGroupMembersList = useCallback(async () => {
     if (activeChatId) {
       try {
         const res = await apiClient.get(`/chats/group/${activeChatId}/members`);
@@ -87,9 +87,9 @@ export const ChatWindow = () => {
         console.error('Failed to fetch group members list:', err);
       }
     }
-  };
+  }, [activeChatId]);
 
-  const fetchSharedMedia = async () => {
+  const fetchSharedMedia = useCallback(async () => {
     if (activeChatId) {
       try {
         const res = await apiClient.get(`/messages/${activeChatId}/media`);
@@ -98,17 +98,19 @@ export const ChatWindow = () => {
         console.error('Failed to fetch shared media:', err);
       }
     }
-  };
+  }, [activeChatId]);
 
   useEffect(() => {
     if (showInfo && activeChatId) {
-      fetchSharedMedia();
-      const isGroupChat = chats.find((c) => c.chatId === activeChatId)?.chatType === 'GROUP';
-      if (isGroupChat) {
-        fetchGroupMembersList();
-      }
+      setTimeout(() => {
+        fetchSharedMedia();
+        const isGroupChat = chats.find((c) => c.chatId === activeChatId)?.chatType === 'GROUP';
+        if (isGroupChat) {
+          fetchGroupMembersList();
+        }
+      }, 0);
     }
-  }, [showInfo, activeChatId, chats]);
+  }, [showInfo, activeChatId, chats, fetchSharedMedia, fetchGroupMembersList]);
 
   if (!activeChatId || !activeChat) {
     return (
@@ -134,7 +136,18 @@ export const ChatWindow = () => {
 
   // Typing status list text resolution
   const typingUsers = typingUsersByChatId[activeChatId] || [];
-  const displayTypingText = typingUsers.length > 0 ? 'typing...' : '';
+  const otherTypingUsers = typingUsers.filter((u) => u.userId !== currentUser?.id);
+  const displayTypingText = (() => {
+    if (otherTypingUsers.length === 0) return '';
+    if (!isGroup) return 'typing...';
+    if (otherTypingUsers.length === 1) {
+      return `${otherTypingUsers[0].fullName || otherTypingUsers[0].username || 'Someone'} is typing...`;
+    }
+    if (otherTypingUsers.length === 2) {
+      return `${otherTypingUsers[0].fullName || otherTypingUsers[0].username} and ${otherTypingUsers[1].fullName || otherTypingUsers[1].username} are typing...`;
+    }
+    return `${otherTypingUsers.length} people are typing...`;
+  })();
 
   const handleUpdateGroupSettings = async (e) => {
     e.preventDefault();
@@ -289,10 +302,13 @@ export const ChatWindow = () => {
                   />
                 )}
               </h4>
-              <p className="text-[10px] text-slate-500 font-semibold mt-0.5">
+              <p className={cn(
+                "text-[10px] font-semibold mt-0.5 transition-colors",
+                displayTypingText ? "text-emerald-400 animate-pulse font-bold" : "text-slate-500"
+              )}>
                 {isGroup
-                  ? `${activeChat.participantsCount || 0} participants`
-                  : displayTypingText || formatLastSeen(isOnline, lastSeen)}
+                  ? (displayTypingText || `${activeChat.participantsCount || 0} participants`)
+                  : (displayTypingText || formatLastSeen(isOnline, lastSeen))}
               </p>
             </div>
           </div>
@@ -305,7 +321,7 @@ export const ChatWindow = () => {
             )}
             title="Chat Info"
           >
-            <Users className="h-4 w-4 text-slate-450" />
+            <Users className="h-4 w-4 text-slate-400" />
           </button>
         </div>
 
@@ -330,8 +346,23 @@ export const ChatWindow = () => {
                   message={message}
                   chatType={activeChat.chatType}
                   isGroupAdmin={activeChat?.groupDetails?.role === 'ADMIN'}
+                  recipientPublicKey={recipientPublicKey}
                 />
               )) }
+              {otherTypingUsers.map((tUser) => (
+                <div key={tUser.userId} className="flex flex-col mb-3.5 max-w-[70%] mr-auto items-start animate-fade-in select-none">
+                  {isGroup && (
+                    <span className="text-[10px] font-bold text-slate-400 mb-1 ml-2">
+                      {tUser.fullName || tUser.username || 'Someone'}
+                    </span>
+                  )}
+                  <div className="px-4 py-3 rounded-2xl rounded-tl-none border bg-slate-900/35 border-white/5 text-slate-100 backdrop-blur-md shadow-[0_4px_16px_rgba(0,0,0,0.15)] flex items-center gap-1.5 min-w-[56px] justify-center">
+                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                    <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                  </div>
+                </div>
+              ))}
               <div ref={messagesEndRef} />
             </>
           )}
@@ -729,7 +760,7 @@ export const ChatWindow = () => {
                 variant="outline"
                 className="w-full text-slate-350 hover:text-white hover:bg-slate-800 border-slate-800 flex items-center justify-center gap-2"
               >
-                <Trash2 className="h-4 w-4 text-slate-450" />
+                <Trash2 className="h-4 w-4 text-slate-400" />
                 {isGroup ? 'Clear Chat History' : 'Delete for Me'}
               </Button>
 
@@ -739,7 +770,7 @@ export const ChatWindow = () => {
                   variant="outline"
                   className="w-full text-red-400 hover:text-white hover:bg-red-950/25 hover:border-red-900 border-slate-850 flex items-center justify-center gap-2"
                 >
-                  <Trash2 className="h-4 w-4 text-red-550" />
+                  <Trash2 className="h-4 w-4 text-red-500" />
                   {isGroup ? 'Delete Group for Everyone' : 'Delete for Everyone'}
                 </Button>
               )}

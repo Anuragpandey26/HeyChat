@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import socket from '../../../app/socket.js';
 import { useAuthStore } from '../../auth/store/useAuthStore.js';
 import { useChatStore } from '../../chats/store/useChatStore.js';
@@ -7,7 +7,7 @@ import apiClient from '../../../shared/lib/apiClient.js';
 import { Modal } from '../../../shared/components/ui/Modal.jsx';
 import { Input } from '../../../shared/components/ui/Input.jsx';
 import { Button } from '../../../shared/components/ui/Button.jsx';
-import { Send, Paperclip, BarChart2, Plus, X, FileText, Users } from 'lucide-react';
+import { Send, Paperclip, BarChart2, Plus, X, FileText, Users, Mic, Square, Trash2, Play, Pause } from 'lucide-react';
 import { cn } from '../../../shared/utils/cn.js';
 
 // Size limit constants matching backend .env
@@ -24,6 +24,17 @@ export const ChatInput = ({ chatId, chatType, recipientPublicKey }) => {
   const [text, setText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef(null);
+
+  // Audio Recording States
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const [mediaRecorder, setMediaRecorder] = useState(null);
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState(null);
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState(null);
+  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+
+  const audioPreviewRef = useRef(null);
+  const recordingIntervalRef = useRef(null);
 
   // Mentions Autocomplete State
   const [groupMembers, setGroupMembers] = useState([]);
@@ -50,7 +61,9 @@ export const ChatInput = ({ chatId, chatType, recipientPublicKey }) => {
           console.error('Failed to fetch group members for autocomplete:', err);
         });
     } else {
-      setGroupMembers([]);
+      setTimeout(() => {
+        setGroupMembers([]);
+      }, 0);
     }
   }, [chatId, chatType]);
 
@@ -89,7 +102,11 @@ export const ChatInput = ({ chatId, chatType, recipientPublicKey }) => {
 
     if (!isTyping) {
       setIsTyping(true);
-      socket.emit('typing_start', chatId);
+      socket.emit('typing_start', {
+        chatId,
+        username: currentUser?.username,
+        fullName: currentUser?.fullName,
+      });
     }
 
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
@@ -185,12 +202,159 @@ export const ChatInput = ({ chatId, chatType, recipientPublicKey }) => {
     }
   };
 
-  // Cleanup typing timeout on unmount
+  // Cleanup typing timeout and recording timers on unmount
   useEffect(() => {
     return () => {
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (recordingIntervalRef.current) clearInterval(recordingIntervalRef.current);
     };
   }, []);
+
+  // Time Formatter
+  const formatAudioTime = (seconds) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+  };
+
+  // Start Audio Recording
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      
+      let options = { mimeType: 'audio/webm' };
+      if (!MediaRecorder.isTypeSupported('audio/webm')) {
+        options = { mimeType: 'audio/ogg' };
+      }
+      if (!MediaRecorder.isTypeSupported('audio/ogg') && !MediaRecorder.isTypeSupported('audio/webm')) {
+        options = {};
+      }
+
+      const recorder = new MediaRecorder(stream, options);
+      const chunks = [];
+      
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const mimeType = recorder.mimeType || 'audio/webm';
+        const audioBlob = new Blob(chunks, { type: mimeType });
+        const audioUrl = URL.createObjectURL(audioBlob);
+        setRecordedAudioBlob(audioBlob);
+        setRecordedAudioUrl(audioUrl);
+        stream.getTracks().forEach((track) => track.stop());
+      };
+
+      recorder.start();
+      setMediaRecorder(recorder);
+      setIsRecording(true);
+      setRecordingTime(0);
+
+      // Enforce 1-minute limit
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime((prev) => {
+          if (prev >= 59) {
+            if (recorder && recorder.state !== 'inactive') {
+              recorder.stop();
+            }
+            clearInterval(recordingIntervalRef.current);
+            setIsRecording(false);
+            return 60;
+          }
+          return prev + 1;
+        });
+      }, 1000);
+
+    } catch (err) {
+      console.error('Failed to start audio recording:', err);
+      setUploadError('Failed to access microphone. Please check permissions.');
+    }
+  };
+
+  // Stop Recording
+  const stopRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+    }
+    setIsRecording(false);
+  };
+
+  // Cancel/Discard Recording
+  const cancelRecording = () => {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    if (recordingIntervalRef.current) {
+      clearInterval(recordingIntervalRef.current);
+    }
+    setIsRecording(false);
+    if (recordedAudioUrl) {
+      URL.revokeObjectURL(recordedAudioUrl);
+    }
+    setRecordedAudioBlob(null);
+    setRecordedAudioUrl(null);
+    setIsAudioPlaying(false);
+  };
+
+  // Upload and Send Audio Message
+  const handleSendAudio = async () => {
+    if (!recordedAudioBlob) return;
+
+    setIsUploading(true);
+    setUploadError('');
+
+    const formData = new FormData();
+    const ext = recordedAudioBlob.type.split('/')[1] || 'webm';
+    formData.append('file', recordedAudioBlob, `voice_message.${ext}`);
+
+    try {
+      const res = await apiClient.post('/messages/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      const fileUrl = res.data.data.fileUrl;
+
+      let captionText = `[Voice Message] (${formatAudioTime(recordingTime || 1)})`;
+      let contentToSend = captionText;
+
+      if (chatType === 'PRIVATE' && recipientPublicKey) {
+        contentToSend = encryptMessage(captionText, recipientPublicKey, privateKey);
+      }
+
+      socket.emit('send_message', {
+        chatId,
+        encryptedContent: contentToSend,
+        mediaType: 'AUDIO',
+        mediaUrl: fileUrl,
+      }, (socketRes) => {
+        if (socketRes.status !== 'success') {
+          alert(socketRes.message || 'Failed to send audio message');
+        }
+      });
+
+      cancelRecording();
+    } catch (err) {
+      setUploadError(err.response?.data?.message || 'Failed to upload audio file.');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const togglePlayPreview = () => {
+    if (audioPreviewRef.current) {
+      if (isAudioPlaying) {
+        audioPreviewRef.current.pause();
+      } else {
+        audioPreviewRef.current.play();
+      }
+      setIsAudioPlaying(!isAudioPlaying);
+    }
+  };
 
   const handleSendText = (e) => {
     e.preventDefault();
@@ -253,9 +417,9 @@ export const ChatInput = ({ chatId, chatType, recipientPublicKey }) => {
     setUploadError('');
 
     // Validate file type and size constraints
-    let mediaType = 'TEXT';
-    let sizeLimit = 0;
-    let limitLabel = '';
+    let mediaType;
+    let sizeLimit;
+    let limitLabel;
 
     if (file.type.startsWith('image/')) {
       mediaType = 'IMAGE';
@@ -479,90 +643,179 @@ export const ChatInput = ({ chatId, chatType, recipientPublicKey }) => {
         </div>
       )}
 
-      <form onSubmit={handleSendText} className="flex items-center gap-2">
-        {/* File Attach clip with Dropdown */}
-        <div className="relative" ref={menuRef}>
+      {isRecording ? (
+        <div className="flex items-center justify-between gap-4 py-2.5 px-4 bg-slate-950/65 border border-red-500/20 rounded-2xl animate-fade-in min-h-[52px]">
+          <div className="flex items-center gap-3 select-none">
+            <span className="w-2.5 h-2.5 rounded-full bg-red-500 animate-pulse border border-red-400" />
+            <span className="text-xs font-bold text-slate-300 tracking-wider">
+              Recording Voice Message: <strong className="text-red-400 font-extrabold">{formatAudioTime(recordingTime)}</strong> / 1:00
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={cancelRecording}
+              className="p-2.5 bg-slate-900 hover:bg-red-950/20 border border-slate-850 hover:border-red-900/40 text-slate-400 hover:text-red-400 rounded-xl transition-all shadow-sm"
+              title="Cancel Recording"
+            >
+              <Trash2 className="h-4.5 w-4.5" />
+            </button>
+            <button
+              type="button"
+              onClick={stopRecording}
+              className="p-2.5 bg-brand-600 hover:bg-brand-500 border border-brand-500 text-white rounded-xl transition-all shadow-md active:scale-95"
+              title="Stop Recording"
+            >
+              <Square className="h-4.5 w-4.5 fill-current" />
+            </button>
+          </div>
+        </div>
+      ) : recordedAudioUrl ? (
+        <div className="flex items-center justify-between gap-4 py-2.5 px-4 bg-slate-950/65 border border-brand-500/20 rounded-2xl animate-fade-in min-h-[52px]">
+          <div className="flex items-center gap-3.5 flex-1">
+            <button
+              type="button"
+              onClick={togglePlayPreview}
+              className="p-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-full text-brand-400 hover:text-brand-300 transition-colors shadow-sm"
+              title={isAudioPlaying ? "Pause Preview" : "Play Preview"}
+            >
+              {isAudioPlaying ? <Pause className="h-4.5 w-4.5 fill-current" /> : <Play className="h-4.5 w-4.5 fill-current translate-x-[1px]" />}
+            </button>
+            <audio
+              ref={audioPreviewRef}
+              src={recordedAudioUrl}
+              onEnded={() => setIsAudioPlaying(false)}
+              className="hidden"
+            />
+            <div className="flex flex-col text-left flex-1 min-w-0">
+              <span className="text-xs font-bold text-slate-200">Voice Note Preview</span>
+              <span className="text-[10px] text-slate-500 font-semibold mt-0.5 font-mono">Duration: {formatAudioTime(recordingTime)}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={cancelRecording}
+              disabled={isUploading}
+              className="p-2.5 bg-slate-900 hover:bg-red-950/20 border border-slate-850 hover:border-red-900/40 text-slate-400 hover:text-red-400 rounded-xl transition-all shadow-sm disabled:opacity-50"
+              title="Delete Recording"
+            >
+              <Trash2 className="h-4.5 w-4.5" />
+            </button>
+            <button
+              type="button"
+              onClick={handleSendAudio}
+              disabled={isUploading}
+              className="p-3 bg-gradient-to-tr from-brand-600 to-blue-500 hover:from-brand-500 hover:to-blue-400 active:scale-95 text-white rounded-xl shadow-[0_4px_16px_rgba(37,99,235,0.25)] transition-all disabled:opacity-50 flex items-center justify-center min-w-[44px]"
+              title="Send Voice Message"
+            >
+              {isUploading ? (
+                <div className="animate-spin rounded-full h-4.5 w-4.5 border-t-2 border-white"></div>
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleSendText} className="flex items-center gap-2">
+          {/* File Attach clip with Dropdown */}
+          <div className="relative" ref={menuRef}>
+            <button
+              type="button"
+              onClick={() => setShowAttachMenu(!showAttachMenu)}
+              disabled={isUploading || isRestricted}
+              className={cn(
+                "p-2.5 bg-slate-905/40 hover:bg-slate-800/80 rounded-xl text-slate-400 hover:text-slate-200 transition-colors border border-slate-800 disabled:opacity-50 disabled:cursor-not-allowed",
+                showAttachMenu && "bg-slate-800 text-slate-100 border-slate-700"
+              )}
+              title="Attach File (Images/PDFs/Videos)"
+            >
+              <Paperclip className="h-5 w-5" />
+            </button>
+            
+            {showAttachMenu && (
+              <div className="absolute bottom-14 left-0 w-48 bg-slate-950/95 border border-slate-850 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 z-50 animate-fade-in backdrop-blur-xl">
+                <button
+                  type="button"
+                  onClick={() => triggerFileSelect('document')}
+                  className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-900 rounded-xl text-xs font-semibold text-slate-300 hover:text-slate-100 text-left transition-colors"
+                >
+                  <span className="p-1.5 bg-indigo-950/40 border border-indigo-900/40 text-indigo-400 rounded-lg text-xs leading-none">📄</span>
+                  Document (PDF)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => triggerFileSelect('image')}
+                  className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-900 rounded-xl text-xs font-semibold text-slate-300 hover:text-slate-100 text-left transition-colors"
+                >
+                  <span className="p-1.5 bg-sky-950/40 border border-sky-900/40 text-sky-400 rounded-lg text-xs leading-none">🖼️</span>
+                  Photo (Images)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => triggerFileSelect('video')}
+                  className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-900 rounded-xl text-xs font-semibold text-slate-300 hover:text-slate-100 text-left transition-colors"
+                >
+                  <span className="p-1.5 bg-pink-950/40 border border-pink-900/40 text-pink-400 rounded-lg text-xs leading-none">🎥</span>
+                  Video (Videos)
+                </button>
+              </div>
+            )}
+          </div>
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+            className="hidden"
+            accept={acceptType}
+          />
+
+          {/* Poll Build button */}
           <button
             type="button"
-            onClick={() => setShowAttachMenu(!showAttachMenu)}
+            onClick={() => setIsPollOpen(true)}
             disabled={isUploading || isRestricted}
-            className={cn(
-              "p-2.5 bg-slate-905/40 hover:bg-slate-800/80 rounded-xl text-slate-400 hover:text-slate-200 transition-colors border border-slate-800 disabled:opacity-50 disabled:cursor-not-allowed",
-              showAttachMenu && "bg-slate-800 text-slate-100 border-slate-700"
-            )}
-            title="Attach File (Images/PDFs/Videos)"
+            className="p-2.5 bg-slate-905/40 hover:bg-slate-800/80 rounded-xl text-slate-400 hover:text-slate-200 transition-colors border border-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Create Opinion Poll"
           >
-            <Paperclip className="h-5 w-5" />
+            <BarChart2 className="h-5 w-5" />
           </button>
-          
-          {showAttachMenu && (
-            <div className="absolute bottom-14 left-0 w-48 bg-slate-950/95 border border-slate-850 rounded-2xl p-2 shadow-2xl flex flex-col gap-1 z-50 animate-fade-in backdrop-blur-xl">
-              <button
-                type="button"
-                onClick={() => triggerFileSelect('document')}
-                className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-900 rounded-xl text-xs font-semibold text-slate-300 hover:text-slate-100 text-left transition-colors"
-              >
-                <span className="p-1.5 bg-indigo-950/40 border border-indigo-900/40 text-indigo-400 rounded-lg text-xs leading-none">📄</span>
-                Document (PDF)
-              </button>
-              <button
-                type="button"
-                onClick={() => triggerFileSelect('image')}
-                className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-900 rounded-xl text-xs font-semibold text-slate-300 hover:text-slate-100 text-left transition-colors"
-              >
-                <span className="p-1.5 bg-sky-950/40 border border-sky-900/40 text-sky-400 rounded-lg text-xs leading-none">🖼️</span>
-                Photo (Images)
-              </button>
-              <button
-                type="button"
-                onClick={() => triggerFileSelect('video')}
-                className="flex items-center gap-3 px-3.5 py-2.5 hover:bg-slate-900 rounded-xl text-xs font-semibold text-slate-300 hover:text-slate-100 text-left transition-colors"
-              >
-                <span className="p-1.5 bg-pink-950/40 border border-pink-900/40 text-pink-400 rounded-lg text-xs leading-none">🎥</span>
-                Video (Videos)
-              </button>
-            </div>
+
+          {/* Text Input area */}
+          <input
+            type="text"
+            placeholder={isRestricted ? "Only administrators can send messages" : (isUploading ? "Uploading encrypted attachment..." : "Type message securely...")}
+            value={text}
+            onChange={handleTextChange}
+            onKeyDown={handleKeyDown}
+            disabled={isUploading || isRestricted}
+            className="flex-1 px-4.5 py-3 bg-slate-950/45 border border-slate-800 rounded-xl text-slate-100 placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all disabled:opacity-50 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]"
+          />
+
+          {/* Submit / Record */}
+          {text.trim() ? (
+            <button
+              type="submit"
+              disabled={isUploading || isRestricted}
+              className="p-3 bg-gradient-to-tr from-brand-600 to-blue-500 hover:from-brand-500 hover:to-blue-400 active:scale-95 text-white rounded-xl shadow-[0_4px_16px_rgba(37,99,235,0.25)] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100 animate-fade-in"
+              title="Send Message"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={startRecording}
+              disabled={isUploading || isRestricted}
+              className="p-3 bg-slate-800 hover:bg-slate-750 border border-slate-700/60 active:scale-95 text-slate-300 hover:text-slate-100 rounded-xl transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed animate-fade-in"
+              title="Record Voice Message"
+            >
+              <Mic className="h-4 w-4" />
+            </button>
           )}
-        </div>
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileUpload}
-          className="hidden"
-          accept={acceptType}
-        />
-
-        {/* Poll Build button */}
-        <button
-          type="button"
-          onClick={() => setIsPollOpen(true)}
-          disabled={isUploading || isRestricted}
-          className="p-2.5 bg-slate-905/40 hover:bg-slate-800/80 rounded-xl text-slate-400 hover:text-slate-200 transition-colors border border-slate-800 disabled:opacity-50 disabled:cursor-not-allowed"
-          title="Create Opinion Poll"
-        >
-          <BarChart2 className="h-5 w-5" />
-        </button>
-
-        {/* Text Input area */}
-        <input
-          type="text"
-          placeholder={isRestricted ? "Only administrators can send messages" : (isUploading ? "Uploading encrypted attachment..." : "Type message securely...")}
-          value={text}
-          onChange={handleTextChange}
-          onKeyDown={handleKeyDown}
-          disabled={isUploading || isRestricted}
-          className="flex-1 px-4.5 py-3 bg-slate-950/45 border border-slate-800 rounded-xl text-slate-100 placeholder:text-slate-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 transition-all disabled:opacity-50 shadow-[inset_0_1px_2px_rgba(0,0,0,0.4)]"
-        />
-
-        {/* Submit */}
-        <button
-          type="submit"
-          disabled={!text.trim() || isUploading || isRestricted}
-          className="p-3 bg-gradient-to-tr from-brand-600 to-blue-500 hover:from-brand-500 hover:to-blue-400 active:scale-95 text-white rounded-xl shadow-[0_4px_16px_rgba(37,99,235,0.25)] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
-        >
-          <Send className="h-4 w-4" />
-        </button>
-      </form>
+        </form>
+      )}
 
       {/* Poll Creation Modal */}
       <Modal isOpen={isPollOpen} onClose={() => setIsPollOpen(false)} title="Create Poll" size="md">

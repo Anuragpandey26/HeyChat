@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import apiClient from '../../../shared/lib/apiClient.js';
 import { Input } from '../../../shared/components/ui/Input.jsx';
 import { Button } from '../../../shared/components/ui/Button.jsx';
@@ -6,8 +6,6 @@ import { HelpCircle, Key, CheckCircle } from 'lucide-react';
 import {
   wrapPrivateKey,
   unwrapPrivateKeyWithAnswer,
-  wrapPrivateKeyWithAnswer,
-  publicKeyFromPrivate,
 } from '../../../shared/lib/crypto.js';
 
 export const SecurityQuestionRecovery = ({ onCancel }) => {
@@ -118,11 +116,11 @@ export const SecurityQuestionRecovery = ({ onCancel }) => {
           Your account password has been updated.
         </p>
         {hasEscrowKey ? (
-          <div className="p-3.5 bg-emerald-950/25 border border-emerald-900/40 rounded-xl text-xs text-emerald-450 font-semibold my-2 shadow-sm leading-relaxed">
+          <div className="p-3.5 bg-emerald-950/25 border border-emerald-900/40 rounded-xl text-xs text-emerald-400 font-semibold my-2 shadow-sm leading-relaxed">
             ✅ Your encryption keys have been preserved. All your previous messages will remain readable after logging in with your new password.
           </div>
         ) : (
-          <div className="p-3.5 bg-amber-950/25 border border-amber-900/40 rounded-xl text-xs text-amber-450 font-semibold my-2 shadow-sm leading-relaxed">
+          <div className="p-3.5 bg-amber-950/25 border border-amber-900/40 rounded-xl text-xs text-amber-400 font-semibold my-2 shadow-sm leading-relaxed">
             ⚠️ Your password has been reset, but your encryption keys could not be recovered. Messages sent before this reset may not be readable.
           </div>
         )}

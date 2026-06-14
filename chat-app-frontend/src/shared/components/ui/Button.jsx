@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { cn } from '../../utils/cn.js';
 
 export const Button = ({
@@ -16,7 +16,7 @@ export const Button = ({
   const variants = {
     primary: 'bg-gradient-to-tr from-brand-600 to-blue-500 hover:from-brand-500 hover:to-blue-400 text-white shadow-[0_4px_16px_rgba(37,99,235,0.25)] hover:shadow-[0_4px_20px_rgba(37,99,235,0.4)] border-none',
     secondary: 'bg-slate-850/80 hover:bg-slate-800 text-slate-200 border border-slate-800 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]',
-    danger: 'bg-gradient-to-tr from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-450 text-white shadow-[0_4px_16px_rgba(239,68,68,0.25)] hover:shadow-[0_4px_20px_rgba(239,68,68,0.4)] border-none',
+    danger: 'bg-gradient-to-tr from-red-600 to-rose-500 hover:from-red-500 hover:to-rose-400 text-white shadow-[0_4px_16px_rgba(239,68,68,0.25)] hover:shadow-[0_4px_20px_rgba(239,68,68,0.4)] border-none',
     outline: 'bg-transparent hover:bg-white/5 text-slate-300 hover:text-white border border-slate-800 hover:border-slate-750',
     ghost: 'bg-transparent hover:bg-white/5 text-slate-400 hover:text-slate-200 border border-transparent',
   };

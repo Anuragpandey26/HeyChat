@@ -70,5 +70,5 @@ const shutdown = async (signal) => {
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
-// Triggering nodemon reload for database client updates
+// Triggering nodemon reload for audio middleware validation and typing indicator updates
 

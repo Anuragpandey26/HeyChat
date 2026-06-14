@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../features/auth/store/useAuthStore.js';
 import { useChatStore } from '../features/chats/store/useChatStore.js';
-import { ShieldCheck, Users, LogIn, ArrowLeft, Check, AlertCircle } from 'lucide-react';
+import { Users, LogIn, ArrowLeft, Check, AlertCircle } from 'lucide-react';
 import apiClient from '../shared/lib/apiClient.js';
 import { Button } from '../shared/components/ui/Button.jsx';
-import { cn } from '../shared/utils/cn.js';
 
 export default function GroupInvite() {
   const { chatId } = useParams();
@@ -25,7 +24,7 @@ export default function GroupInvite() {
   }, [initializeAuth]);
 
   // Fetch group preview details
-  const fetchPreview = async () => {
+  const fetchPreview = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -37,13 +36,15 @@ export default function GroupInvite() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [chatId]);
 
   useEffect(() => {
     if (chatId) {
-      fetchPreview();
+      setTimeout(() => {
+        fetchPreview();
+      }, 0);
     }
-  }, [chatId]);
+  }, [chatId, fetchPreview]);
 
   // Check if they are already in the group (once group details are loaded)
   const isAlreadyMember = group && chats.some(c => c.chatId === chatId);
@@ -157,7 +158,7 @@ export default function GroupInvite() {
               />
             ) : (
               <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-slate-800 to-slate-850 border-2 border-slate-700/60 flex items-center justify-center text-slate-300 hover:scale-105 transition-transform duration-200 shadow-inner">
-                <Users className="h-10 w-10 text-slate-450" />
+                <Users className="h-10 w-10 text-slate-400" />
               </div>
             )}
           </div>

@@ -71,6 +71,30 @@ const usersToSeed = [
     username: 'aman',
     fullName: 'Aman',
   },
+  {
+    email: 'rahul@gmail.com',
+    password: 'Rahul@0326',
+    username: 'rahul',
+    fullName: 'Rahul',
+  },
+  {
+    email: 'priya@gmail.com',
+    password: 'Priya@0326',
+    username: 'priya',
+    fullName: 'Priya',
+  },
+  {
+    email: 'sneha@gmail.com',
+    password: 'Sneha@0326',
+    username: 'sneha',
+    fullName: 'Sneha',
+  },
+  {
+    email: 'vikas@gmail.com',
+    password: 'Vikas@0326',
+    username: 'vikas',
+    fullName: 'Vikas',
+  },
 ];
 
 async function main() {
